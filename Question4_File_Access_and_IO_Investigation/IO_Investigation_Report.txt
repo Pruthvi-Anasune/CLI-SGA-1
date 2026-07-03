@@ -1,0 +1,193 @@
+=====================================================
+QUESTION 4 - FILE ACCESS AND I/O INVESTIGATION
+=====================================================
+Name    : pruthvi
+Date    : 2026-07-03
+System  : Ubuntu on WSL (Windows Subsystem for Linux)
+
+-----------------------------------------------------
+1. Open Files Identified
+-----------------------------------------------------
+Command:
+lsof -p $$
+
+Output:
+COMMAND  PID    USER  FD   TYPE DEVICE SIZE/OFF             NODE NAME
+bash    1511 pruthvi cwd    DIR   0,84     4096 6473924465213141 /mnt/c/Users/PRUTHVI/OneDrive/Desktop/CLI - SGA 1/Question4_File_Access_and_IO_Investigation
+bash    1511 pruthvi rtd    DIR   8,48     4096                2 /
+bash    1511 pruthvi txt    REG   8,48  1540520             1502 /usr/bin/bash
+bash    1511 pruthvi mem    REG   8,48  2186512            14175 /usr/lib/x86_64-linux-gnu/libc.so.6
+bash    1511 pruthvi mem    REG   8,48   369120             2733 /usr/lib/locale/C.utf8/LC_CTYPE
+bash    1511 pruthvi mem    REG   8,48       50             2740 /usr/lib/locale/C.utf8/LC_NUMERIC
+bash    1511 pruthvi mem    REG   8,48     3360             2743 /usr/lib/locale/C.utf8/LC_TIME
+bash    1511 pruthvi mem    REG   8,48     1406             2732 /usr/lib/locale/C.utf8/LC_COLLATE
+bash    1511 pruthvi mem    REG   8,48      270             2738 /usr/lib/locale/C.utf8/LC_MONETARY
+bash    1511 pruthvi mem    REG   8,48       48             2737 /usr/lib/locale/C.utf8/LC_MESSAGES/SYS_LC_MESSAGES
+bash    1511 pruthvi mem    REG   8,48       34             2741 /usr/lib/locale/C.utf8/LC_PAPER
+bash    1511 pruthvi mem    REG   8,48    27028            13859 /usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache
+bash    1511 pruthvi mem    REG   8,48   212504            14513 /usr/lib/x86_64-linux-gnu/libtinfo.so.6.6
+bash    1511 pruthvi mem    REG   8,48       62             2739 /usr/lib/locale/C.utf8/LC_NAME
+bash    1511 pruthvi mem    REG   8,48      127             2731 /usr/lib/locale/C.utf8/LC_ADDRESS
+bash    1511 pruthvi mem    REG   8,48       47             2742 /usr/lib/locale/C.utf8/LC_TELEPHONE
+bash    1511 pruthvi mem    REG   8,48       23             2735 /usr/lib/locale/C.utf8/LC_MEASUREMENT
+bash    1511 pruthvi mem    REG   8,48      258             2734 /usr/lib/locale/C.utf8/LC_IDENTIFICATION
+bash    1511 pruthvi mem    REG   8,48   254864            13930 /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+(output truncated to the first 20 lines with "| head -20")
+
+Screenshot: screenshots/01_lsof.png
+
+Observation/Explanation:
+lsof -p $$ listed every file, terminal device, and socket currently held
+open by my own shell process ($$ expands to its process ID). This
+demonstrates that even an "idle" shell keeps several file descriptors open
+at all times, including its controlling terminal and any loaded libraries.
+
+-----------------------------------------------------
+2. File Descriptor Observations
+-----------------------------------------------------
+Command:
+ls -l /proc/$$/fd
+
+Output:
+total 0
+lr-x------ 1 pruthvi pruthvi 64 Jul  3 16:54 0 -> pipe:[15585]
+l-wx------ 1 pruthvi pruthvi 64 Jul  3 16:54 1 -> pipe:[15586]
+l-wx------ 1 pruthvi pruthvi 64 Jul  3 16:54 2 -> pipe:[15587]
+lrwx------ 1 pruthvi pruthvi 64 Jul  3 16:54 7 -> /dev/ptmx
+
+Screenshot: screenshots/02_fd_list.png
+
+Observation/Explanation:
+The kernel exposes each process's open file descriptors as symbolic links
+under /proc/<pid>/fd/. Descriptors 0, 1, and 2 were present and pointed at
+my terminal device, confirming these are the standard input, standard
+output, and standard error channels every process starts with by default.
+
+-----------------------------------------------------
+3. Output Redirection
+-----------------------------------------------------
+Commands:
+echo "This is normal program output" > output.txt
+cat output.txt
+
+Output:
+This is normal program output
+
+Screenshot: screenshots/03_stdout_redirect.png
+
+Observation/Explanation:
+The > operator redirected file descriptor 1 (stdout) away from my terminal
+screen and into output.txt instead, overwriting the file. cat then
+confirmed the text landed in the file rather than being printed to screen,
+proving stdout redirection works independently of what the program itself
+"thinks" it's doing.
+
+-----------------------------------------------------
+4. Error Redirection
+-----------------------------------------------------
+Commands:
+ls this_file_does_not_exist 2> error.txt
+cat error.txt
+
+Output:
+ls: cannot access 'this_file_does_not_exist': No such file or directory
+
+Screenshot: screenshots/04_stderr_redirect.png
+
+Observation/Explanation:
+2> specifically redirects file descriptor 2 (stderr), the dedicated error
+channel, keeping it separate from normal output (fd 1). This let me
+capture the "No such file or directory" error message into error.txt
+instead of it appearing on screen, showing that stdout and stderr are two
+independent streams that can be routed differently.
+
+-----------------------------------------------------
+5. Combined Redirection
+-----------------------------------------------------
+Commands:
+ls output.txt this_file_does_not_exist > combined.txt 2>&1
+cat combined.txt
+
+Output:
+ls: cannot access 'this_file_does_not_exist': No such file or directory
+output.txt
+
+Screenshot: screenshots/05_combined_redirect.png
+
+Observation/Explanation:
+Here > combined.txt first pointed stdout (fd 1) at the file, then 2>&1
+told the shell to duplicate fd 2 (stderr) to wherever fd 1 currently points
+- the same file. As a result, both the successful listing of output.txt
+and the error for the missing file appeared together, in order, inside a
+single combined.txt file.
+
+-----------------------------------------------------
+6. Resource Limits Observed
+-----------------------------------------------------
+Commands:
+ulimit -a
+ulimit -n
+
+Output:
+$ ulimit -a
+real-time non-blocking time  (microseconds, -R) unlimited
+core file size              (blocks, -c) 0
+data seg size               (kbytes, -d) unlimited
+scheduling priority                 (-e) 0
+file size                   (blocks, -f) unlimited
+pending signals                     (-i) 14253
+max locked memory           (kbytes, -l) 65536
+max memory size             (kbytes, -m) unlimited
+open files                          (-n) 10240
+pipe size                (512 bytes, -p) 8
+POSIX message queues         (bytes, -q) 819200
+real-time priority                  (-r) 0
+stack size                  (kbytes, -s) 8192
+cpu time                   (seconds, -t) unlimited
+max user processes                  (-u) 14253
+virtual memory              (kbytes, -v) unlimited
+file locks                          (-x) unlimited
+
+$ ulimit -n
+10240
+
+Screenshot: screenshots/06_ulimit_a.png, screenshots/07_ulimit_n.png
+
+Observation/Explanation:
+ulimit -a listed every resource cap the shell enforces on processes it
+launches (max file size, max user processes, max locked memory, stack
+size, etc.), and ulimit -n isolated the specific limit on how many file
+descriptors (open files) a single process may hold simultaneously - on
+this system that limit is 10240. This matters for an application experiencing
+logging issues, since exceeding this limit causes "too many open files"
+errors if file handles are opened but never closed.
+
+-----------------------------------------------------
+7. How Linux Manages File I/O
+-----------------------------------------------------
+Explanation:
+In Linux, "everything is a file" - regular files, directories, devices, and
+even network sockets are all accessed through the same read/write system
+call interface. When a process opens something, the kernel hands back a
+small integer called a file descriptor (starting at 0 for stdin, 1 for
+stdout, 2 for stderr, then 3, 4, 5... for anything the program itself
+opens), and every I/O operation on that resource is performed by
+referencing that number, which the kernel maps to the real underlying file
+via a per-process file descriptor table. Redirection operators (>, >>, <,
+2>, 2>&1) simply tell the shell to change what a given descriptor number
+points to before the program even starts, which is why programs don't need
+to know or care where their output is actually going. The kernel also
+enforces per-process ceilings (via ulimit) on how many descriptors can be
+open at once, preventing a single misbehaving process (such as one with a
+file-handle leak, which matches the "logging issues" scenario in this
+task) from exhausting system-wide file resources.
+
+-----------------------------------------------------
+Overall Summary
+-----------------------------------------------------
+This investigation confirmed which files my shell process had open, showed
+how the kernel exposes file descriptors via /proc, demonstrated that stdout
+and stderr can be redirected independently or together, and identified the
+resource limits (ulimit -n) that cap how many files a process may keep
+open at once - directly relevant to diagnosing an application's logging/I-O
+issues such as descriptor leaks or hitting the open-file ceiling.

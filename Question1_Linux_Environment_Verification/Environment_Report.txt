@@ -1,0 +1,120 @@
+=====================================================
+QUESTION 1 - LINUX ENVIRONMENT VERIFICATION
+=====================================================
+Name    : pruthvi
+Date    : 2026-07-03
+System  : Ubuntu on WSL (Windows Subsystem for Linux)
+
+-----------------------------------------------------
+1. Username and Groups
+-----------------------------------------------------
+Command:
+whoami
+
+Output:
+pruthvi
+
+Command:
+id
+
+Output:
+uid=1000(pruthvi) gid=1000(pruthvi) groups=1000(pruthvi),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users)
+
+Screenshot: screenshots/01_whoami_id.png
+
+Observation/Explanation:
+The `whoami` command confirms which user account I am currently logged in
+as, and `id` shows the numeric user ID (UID), primary group ID (GID), and
+the full list of secondary groups my account belongs to. This is the first
+check a support engineer performs to confirm identity and permission scope
+before touching any company resource.
+
+-----------------------------------------------------
+2. Current Shell
+-----------------------------------------------------
+Command:
+echo $SHELL
+
+Output:
+/bin/bash
+
+Screenshot: screenshots/02_shell.png
+
+Observation/Explanation:
+$SHELL is an environment variable that stores the path to the program
+currently interpreting my typed commands (in my case bash). Knowing the
+active shell matters because different shells (bash, sh, zsh) can have
+slightly different syntax and scripting behavior.
+
+-----------------------------------------------------
+3. Current Working Directory
+-----------------------------------------------------
+Command:
+pwd
+
+Output:
+/mnt/c/Users/PRUTHVI/OneDrive/Desktop/CLI - SGA 1/Question1_Linux_Environment_Verification
+
+Screenshot: screenshots/03_pwd.png
+
+Observation/Explanation:
+`pwd` (print working directory) displays the absolute path of the directory
+I am currently operating in. Every relative file operation I run is
+interpreted relative to this location, so confirming it avoids creating or
+modifying files in the wrong place.
+
+-----------------------------------------------------
+4. List of Files and Directories in Workspace
+-----------------------------------------------------
+Command:
+ls -la
+
+Output:
+total 8
+drwxrwxrwx 1 root root 4096 Jul  3 16:04 .
+drwxrwxrwx 1 root root 4096 Jul  3 16:08 ..
+-rwxrwxrwx 1 root root 3474 Jul  3 16:04 Environment_Report.txt
+-rwxrwxrwx 1 root root 2560 Jul  3 16:04 INSTRUCTIONS.md
+drwxrwxrwx 1 root root 4096 Jul  3 16:07 screenshots
+
+Screenshot: screenshots/04_ls.png
+
+Observation/Explanation:
+`ls -la` lists every entry in the current directory in long format, showing
+permissions, owner, group, size, and modification date, and the `-a` flag
+also reveals hidden files (those starting with a dot, such as `.bashrc`)
+that a plain `ls` would not show.
+
+-----------------------------------------------------
+5. Network Connectivity Verification
+-----------------------------------------------------
+Command:
+ping -c 4 google.com
+
+Output:
+PING google.com (192.178.193.101) 56(84) bytes of data.
+64 bytes from ly-in-f101.1e100.net (192.178.193.101): icmp_seq=1 ttl=114 time=33.2 ms
+64 bytes from ly-in-f101.1e100.net (192.178.193.101): icmp_seq=2 ttl=114 time=27.8 ms
+64 bytes from ly-in-f101.1e100.net (192.178.193.101): icmp_seq=3 ttl=114 time=31.3 ms
+64 bytes from ly-in-f101.1e100.net (192.178.193.101): icmp_seq=4 ttl=114 time=27.2 ms
+
+--- google.com ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3004ms
+rtt min/avg/max/mdev = 27.200/29.872/33.229/2.495 ms
+
+Screenshot: screenshots/05_ping.png
+
+Observation/Explanation:
+`ping` sends ICMP echo request packets to the target host and measures
+whether/how quickly it replies; `-c 4` restricts the test to 4 packets. All
+4 packets receiving replies with low packet loss confirms the machine has
+working outbound network connectivity and functioning DNS resolution.
+
+-----------------------------------------------------
+Overall Summary
+-----------------------------------------------------
+This exercise verified my Linux user identity (username and group
+memberships), the active shell interpreting my commands, my current
+location in the filesystem, the contents of my workspace, and outbound
+network connectivity — establishing a confirmed, working environment
+before proceeding to access any company resources.

@@ -1,0 +1,132 @@
+=====================================================
+QUESTION 3 - FILE SYSTEM AND LINK ANALYSIS
+=====================================================
+Name    : pruthvi
+Date    : 2026-07-03
+System  : Ubuntu on WSL (Windows Subsystem for Linux)
+
+-----------------------------------------------------
+1. Creating the Original File
+-----------------------------------------------------
+Commands:
+echo "This is the original file" > original.txt
+cat original.txt
+
+Output:
+This is the original file
+
+Screenshot: screenshots/01_create_original.png
+
+Observation/Explanation:
+I created original.txt containing a single line of text and confirmed its
+contents with cat. This file will act as the baseline for comparing hard
+links and symbolic links.
+
+-----------------------------------------------------
+2. Inode Numbers of All Files
+-----------------------------------------------------
+Commands:
+ls -i original.txt
+ln original.txt hardlink.txt
+ln -s original.txt symlink.txt
+ls -li
+
+Output:
+$ ls -i original.txt
+41983 original.txt
+
+$ ls -li
+total 8
+41983 -rw-r--r-- 2 pruthvi pruthvi 26 Jul  3 16:53 hardlink.txt
+41983 -rw-r--r-- 2 pruthvi pruthvi 26 Jul  3 16:53 original.txt
+41984 lrwxrwxrwx 1 pruthvi pruthvi 12 Jul  3 16:53 symlink.txt -> original.txt
+
+Screenshot: screenshots/02_inode_original.png, screenshots/03_ls_li_compare.png
+
+Observation/Explanation:
+Every file on a Linux filesystem is identified internally by an inode
+number, which points to the actual data blocks and metadata on disk; the
+filename is just a label pointing at that inode. ls -li showed that
+original.txt and hardlink.txt share the exact same inode number, while
+symlink.txt has a completely different (and smaller) inode of its own.
+
+-----------------------------------------------------
+3. Comparison: Hard Link vs Symbolic Link
+-----------------------------------------------------
+Output:
+$ stat original.txt
+  File: original.txt
+  size: 26        	Blocks: 8          IO Block: 4096   regular file
+Device: 8,48	Inode: 41983       Links: 2
+Access: (0644/-rw-r--r--)  Uid: ( 1000/ pruthvi)   Gid: ( 1000/ pruthvi)
+
+$ stat hardlink.txt
+  File: hardlink.txt
+  size: 26        	Blocks: 8          IO Block: 4096   regular file
+Device: 8,48	Inode: 41983       Links: 2
+Access: (0644/-rw-r--r--)  Uid: ( 1000/ pruthvi)   Gid: ( 1000/ pruthvi)
+
+$ stat symlink.txt
+  File: 'symlink.txt' -> 'original.txt'
+  size: 12        	Blocks: 0          IO Block: 4096   symbolic link
+Device: 8,48	Inode: 41984       Links: 1
+Access: (0777/lrwxrwxrwx)  Uid: ( 1000/ pruthvi)   Gid: ( 1000/ pruthvi)
+
+Screenshot: screenshots/04_stat_all.png
+
+Observation/Explanation:
+A hard link (hardlink.txt) is a second directory entry pointing directly at
+the same inode as original.txt — stat confirmed the "Links" count on that
+inode was 2, meaning two names reference one physical file, and both names
+are fully equal; there is no "original" versus "copy," they are identical.
+A symbolic link (symlink.txt), by contrast, is its own small file with its
+own separate inode whose only content is the text path "original.txt" —
+stat showed it as file type "symbolic link" with a much smaller size (just
+enough bytes to store that path string) and its own distinct link count.
+
+-----------------------------------------------------
+4. Effect of Deleting the Original File
+-----------------------------------------------------
+Commands:
+rm original.txt
+cat hardlink.txt
+cat symlink.txt
+ls -li
+
+Output:
+$ rm original.txt
+$ cat hardlink.txt
+This is the original file
+$ cat symlink.txt
+cat: symlink.txt: No such file or directory
+$ ls -li
+total 4
+41983 -rw-r--r-- 1 pruthvi pruthvi 26 Jul  3 16:53 hardlink.txt
+41984 lrwxrwxrwx 1 pruthvi pruthvi 12 Jul  3 16:53 symlink.txt -> original.txt
+
+Screenshot: screenshots/05_after_delete.png, screenshots/06_broken_symlink.png
+
+Observation/Explanation:
+After deleting original.txt, cat hardlink.txt still printed the file's
+contents perfectly, because rm only removes the directory entry named
+"original.txt" — the underlying inode and its data are only actually freed
+once its hard-link count drops to zero, and hardlink.txt was still holding
+a reference to that same inode. In contrast, cat symlink.txt failed with a
+"No such file or directory" error, because the symbolic link only stored
+the path name "original.txt", and once that name stopped existing, the
+symlink had nothing left to resolve to — it became a "broken" or "dangling"
+link, which ls -li also displayed distinctly (highlighted/blinking, with an
+arrow to a target that no longer exists).
+
+-----------------------------------------------------
+5. Conclusions
+-----------------------------------------------------
+This experiment demonstrated that Linux files are identified by inode, not
+by name. A hard link is a true duplicate reference to the same data and
+survives deletion of any single name pointing at it (the data is only
+removed when the last hard link is gone), while a symbolic link is a
+separate, lightweight pointer to a path string that breaks the moment its
+target is removed or renamed. Hard links cannot cross filesystem/partition
+boundaries and cannot point to directories, while symbolic links can do
+both, which is why symlinks are far more common in practice (e.g. for
+shortcuts across drives) despite being more fragile to the target moving.

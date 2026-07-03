@@ -1,0 +1,146 @@
+=====================================================
+QUESTION 2 - SECURE PROJECT WORKSPACE SETUP
+=====================================================
+Name    : pruthvi
+Date    : 2026-07-03
+System  : Ubuntu on WSL (Windows Subsystem for Linux)
+
+-----------------------------------------------------
+1. Umask Value Used
+-----------------------------------------------------
+Command:
+umask
+
+Output:
+0022
+
+Screenshot: screenshots/01_umask.png
+
+Observation/Explanation:
+umask defines which permission bits are automatically removed every time a
+new file or directory is created. A umask of 0022 means new directories are
+created as 755 (777-022) and new files as 644 (666-022), so files never get
+the execute bit by default and "others" only get read access unless I
+explicitly change it with chmod.
+
+-----------------------------------------------------
+2. Directory Structure Created
+-----------------------------------------------------
+Commands:
+mkdir -p ProjectWorkspace/docs ProjectWorkspace/src ProjectWorkspace/logs
+find ProjectWorkspace
+
+Output:
+ProjectWorkspace
+ProjectWorkspace/logs
+ProjectWorkspace/docs
+ProjectWorkspace/src
+
+Screenshot: screenshots/02_structure.png
+
+Observation/Explanation:
+mkdir -p created the ProjectWorkspace directory along with three
+subdirectories (docs, src, logs) in a single command, creating any missing
+parent folders automatically instead of failing if they didn't already
+exist. This structure separates documentation, source files, and logs so
+each category can later be given different access rules if needed.
+
+-----------------------------------------------------
+3. File Permissions BEFORE Modification
+-----------------------------------------------------
+Commands:
+touch ProjectWorkspace/docs/plan.txt
+ls -l ProjectWorkspace/docs/plan.txt
+
+Output:
+-rw-r--r-- 1 pruthvi pruthvi 0 Jul  3 16:52 ProjectWorkspace/docs/plan.txt
+
+Screenshot: screenshots/03_permissions_before.png
+
+Observation/Explanation:
+Immediately after creation, plan.txt inherited the default permissions
+dictated by my umask, typically -rw-r--r-- (644): the owner can read and
+write, while the group and everyone else can only read it. No one can
+execute it, which is correct since it is a plain text document.
+
+-----------------------------------------------------
+4. File Permissions AFTER Modification
+-----------------------------------------------------
+Commands:
+chmod 640 ProjectWorkspace/docs/plan.txt
+ls -l ProjectWorkspace/docs/plan.txt
+
+Output:
+-rw-r----- 1 pruthvi pruthvi 0 Jul  3 16:52 ProjectWorkspace/docs/plan.txt
+
+Screenshot: screenshots/04_permissions_after.png
+
+Observation/Explanation:
+chmod 640 tightened the permissions to -rw-r-----: the owner keeps
+read/write access, the group is downgraded to read-only, and "others" lose
+all access entirely (previously they could read it). This is a more secure
+posture for a project document that should only be visible to the project
+team's group, not to every user on the system.
+
+-----------------------------------------------------
+5. Folder-Level Permissions
+-----------------------------------------------------
+Commands:
+chmod 750 ProjectWorkspace
+ls -ld ProjectWorkspace
+
+Output:
+drwxr-x--- 5 pruthvi pruthvi 4096 Jul  3 16:52 ProjectWorkspace
+
+Screenshot: screenshots/05_folder_permissions.png
+
+Observation/Explanation:
+Setting the ProjectWorkspace folder itself to 750 (drwxr-x---) means only
+the owner can fully enter/modify/list it, the group can enter and list its
+contents but not create or delete files directly in it, and everyone else
+is denied access completely, so unauthorized users cannot even see what is
+inside the workspace.
+
+-----------------------------------------------------
+6. Ownership Details
+-----------------------------------------------------
+Commands:
+ls -l ProjectWorkspace/docs/plan.txt
+whoami
+
+Output:
+-rw-r----- 1 pruthvi pruthvi 0 Jul  3 16:52 ProjectWorkspace/docs/plan.txt
+pruthvi
+
+Screenshot: screenshots/06_ownership.png
+
+Observation/Explanation:
+The owner and group columns of the ls -l output match my own username,
+confirming I am the file's owner and therefore the one whose permission
+bits (the first set of rwx) apply to me directly, while the group and
+others bits control everyone else's access separately.
+
+-----------------------------------------------------
+7. How Permissions Protect Project Data
+-----------------------------------------------------
+Explanation:
+Linux file permissions implement least-privilege access control by
+splitting rights into three scopes (owner, group, others) and three
+actions (read, write, execute). By tightening plan.txt to 640 and the
+ProjectWorkspace folder to 750, only the project owner can modify files,
+only trusted group members can view them, and outside/unauthorized users
+are blocked entirely from both reading the documents and even listing the
+folder's contents. Combined with a sensible umask, this ensures every new
+file created inside the workspace starts with safe default permissions
+rather than being accidentally world-writable or world-readable, reducing
+the risk of accidental data leaks or tampering.
+
+-----------------------------------------------------
+Overall Summary
+-----------------------------------------------------
+I created a project workspace with docs/src/logs subfolders, observed the
+default permissions files receive based on the system umask, then
+deliberately tightened both a file (640) and its parent folder (750) to
+restrict access to only the owner and group, and confirmed ownership with
+ls -l and whoami. This demonstrates how Linux permission bits are used in
+practice to secure a real project workspace.

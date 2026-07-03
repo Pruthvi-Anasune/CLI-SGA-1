@@ -1,0 +1,175 @@
+=====================================================
+QUESTION 5 - STORAGE HEALTH ASSESSMENT AND DOCUMENTATION
+=====================================================
+Name    : pruthvi
+Date    : 2026-07-03
+System  : Ubuntu on WSL (Windows Subsystem for Linux)
+
+-----------------------------------------------------
+1. Available Storage Devices
+-----------------------------------------------------
+Command:
+lsblk
+
+Output:
+NAME MAJ:MIN RM   SIZE RO TYPE MOUNTPOINTS
+sda    8:0    0 388.6M  1 disk
+sdb    8:16   0   186M  1 disk
+sdc    8:32   0     1G  0 disk [SWAP]
+sdd    8:48   0     1T  0 disk /mnt/wslg/distro
+                               /
+sde    8:64   0   150M  0 disk
+
+Screenshot: screenshots/01_lsblk.png
+
+Observation/Explanation:
+lsblk lists all block storage devices visible to the system, showing each
+disk and its partitions along with size and mount point, giving a quick
+inventory of what physical/virtual storage is available before deploying
+a new application server.
+
+-----------------------------------------------------
+2. Mounted File Systems
+-----------------------------------------------------
+Command:
+df -h
+
+Output:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd       1007G  1.3G  955G   1% /
+rootfs          1.8G  2.7M  1.8G   1% /init
+none            1.8G     0  1.8G   0% /dev/shm
+none            1.8G  536K  1.8G   1% /run
+none            1.8G     0  1.8G   0% /run/lock
+tmpfs           358M   12K  358M   1% /run/user/1000
+drivers         476G  354G  123G  75% /usr/lib/wsl/drivers
+tmpfs           1.8G     0  1.8G   0% /tmp
+C:\             476G  354G  123G  75% /mnt/c
+
+Screenshot: screenshots/02_df_h.png
+
+Observation/Explanation:
+df -h shows every currently mounted filesystem with its total size, used
+space, available space, and percentage used, in human-readable units. This
+confirms which partitions are mounted where and how much headroom each has
+before an application server starts writing data to them.
+
+-----------------------------------------------------
+3. Disk Usage Statistics
+-----------------------------------------------------
+Command:
+du -sh ~
+
+Output:
+120K	/home/pruthvi
+
+Screenshot: screenshots/04_du_sh.png
+
+Observation/Explanation:
+du -sh summarizes the total disk space consumed by my home directory in a
+single human-readable figure, which is useful for tracking how much space
+user data/application files are actually consuming versus the raw
+partition size reported by df.
+
+-----------------------------------------------------
+4. Inode Utilization
+-----------------------------------------------------
+Command:
+df -i
+
+Output:
+Filesystem       Inodes   IUsed    IFree IUse% Mounted on
+/dev/sdd       67108864   44938 67063926    1% /
+rootfs           456110      12   456098    1% /init
+none             457370       1   457369    1% /dev/shm
+none             457370     574   456796    1% /run
+tmpfs             91474      44    91430    1% /run/user/1000
+drivers             999 -999001  1000000     - /usr/lib/wsl/drivers
+tmpfs           1048576       7  1048569    1% /tmp
+C:\                 999 -999001  1000000     - /mnt/c
+
+Note: the "drivers" and "C:\" lines show a negative/placeholder inode count
+because they are Windows drives passed through into WSL (drvfs), which
+don't use a native Linux inode system - Windows filesystems track free
+space differently, so WSL just reports a fixed placeholder there instead
+of a real inode count.
+
+Screenshot: screenshots/03_df_i.png
+
+Observation/Explanation:
+df -i reports inode usage instead of byte usage for each filesystem. Even
+if plenty of disk space remains, a filesystem that has exhausted its inode
+count cannot create new files, so checking this separately from raw disk
+space is essential storage-health due diligence before deployment.
+
+-----------------------------------------------------
+5. Mounted Filesystems Detail
+-----------------------------------------------------
+Command:
+mount | grep -E "ext4|overlay|tmpfs" | head -10
+
+Output:
+/dev/sdd on / type ext4 (rw,relatime,discard,errors=remount-ro,data=ordered)
+none on /dev/shm type tmpfs (rw,nosuid,nodev,noatime)
+none on /run type tmpfs (rw,nosuid,nodev,mode=755)
+none on /run/lock type tmpfs (rw,nosuid,nodev,noexec,noatime)
+none on /run/shm type tmpfs (rw,nosuid,nodev,noatime)
+none on /run/user type tmpfs (rw,nosuid,nodev,noexec,noatime,mode=755)
+tmpfs on /run/user/1000 type tmpfs (rw,nosuid,nodev,relatime,size=365896k,nr_inodes=91474,mode=700,uid=1000,gid=1000)
+
+Screenshot: screenshots/05_mount.png
+
+Observation/Explanation:
+mount lists every active mount point together with its filesystem type
+(ext4, overlay, tmpfs, etc.) and mount options (e.g. read-write, noexec).
+This confirms not just how much space each filesystem has, but what kind
+of filesystem it is and under what constraints it is mounted.
+
+-----------------------------------------------------
+6. Storage Health Observations
+-----------------------------------------------------
+Explanation:
+Based on the df -h and df -i output above, the Linux root filesystem
+(/dev/sdd, ext4) is in a very healthy state at only about 1% used for both
+disk space and inodes, with plenty of headroom. The underlying Windows C:
+drive (shared into WSL as /mnt/c and /usr/lib/wsl/drivers) is at 75% used
+(354G of 476G) - not critical, but worth monitoring since it is the host
+drive backing this whole environment and would need attention if it
+approaches 90%+. No filesystem was mounted read-only or showing errors,
+and lsblk confirmed all expected block devices/partitions were correctly
+detected and mounted. Overall the storage subsystem is healthy enough for
+deploying a new application server, with the host drive usage flagged as
+the one thing to keep an eye on.
+
+-----------------------------------------------------
+7. Recommendations for Improving Storage Utilization
+-----------------------------------------------------
+Explanation:
+1. Set up automated monitoring/alerting (e.g. via a cron job or monitoring
+   tool) to warn before any filesystem crosses ~80% disk or inode usage,
+   since running out of either causes application failures.
+2. Regularly clean up log files and temporary data (e.g. using logrotate)
+   so application logs don't silently consume all remaining space over
+   time, which directly relates to the logging/I-O issue investigated in
+   Question 4.
+3. Separate application data, logs, and system files onto distinct
+   partitions/mounts where possible, so a runaway log file fills only its
+   own partition instead of crashing the entire server by filling the
+   root filesystem.
+4. Periodically review du output to identify unexpectedly large
+   directories and archive or delete stale data rather than only reacting
+   once a filesystem is already nearly full.
+5. The host drive backing this environment is already at 75% usage -
+   schedule a cleanup or plan a capacity increase before deploying
+   additional workloads, so the application server doesn't inherit a
+   storage bottleneck from the underlying host.
+
+-----------------------------------------------------
+Overall Summary
+-----------------------------------------------------
+This assessment inventoried the available storage devices, confirmed
+mounted filesystems and their disk/inode usage, and evaluated overall
+storage health ahead of deploying a new application server. The storage
+subsystem was found to be in good health, and monitoring plus log-rotation
+recommendations were documented to keep it that way going forward. This
+report itself was written and saved using the vi text editor, as required.
